@@ -4,27 +4,24 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-enum syscall
-{
-	GETATTR,
-	MKNOD,
-	MKDIR,
-	OPENDIR,
-	READDIR,
-	OPEN,
-	READ,
-	RENAME,
-	UNLINK,
-	RMDIR,
-	TRUNCATE,
-	RELEASE,
-	RELEASEDIR,
-	WRITE
-};
+#define GETATTR 1
+#define MKNOD 2
+#define MKDIR 3
+#define OPENDIR 4
+#define READDIR 5
+#define OPEN 6
+#define READ 7
+#define RENAME 8
+#define UNLINK 9
+#define RMDIR 10
+#define TRUNCATE 11
+#define RELEASE 12
+#define RELEASEDIR 13
+#define WRITE 14
 
 struct client_response
 {
-	enum syscall func;
+	int func;
 	char string1[256];
 	char string2[256];
 	int int1;

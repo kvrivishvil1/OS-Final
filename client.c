@@ -13,6 +13,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include "parser.h"
 #include "mutual.h"
@@ -24,20 +25,17 @@
 #include <netinet/ip.h> /* superset of previous */
 #include <arpa/inet.h>
 
-static const char rootdir[] = "/home/soso/Desktop/rootdir";
-int sfd;
-
 int c_getattr(const char *path, struct stat *statbuf)
 {
-    // printf("----  getattr : %s\n", path);
     struct getattr_result res;
+    struct storage *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = GETATTR;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(struct getattr_result), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res, sizeof(struct getattr_result), 0);
 
     memcpy(statbuf, &res.buf, sizeof(struct stat));
     return res.res;
@@ -46,53 +44,63 @@ int c_getattr(const char *path, struct stat *statbuf)
 int c_mknod(const char *path, mode_t mode, dev_t dev)
 {
 
-    int res;
+    int res1, res2;
+    struct storage *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = MKNOD;
     info.int1 = mode;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
 
-    printf("----  mknod :path %s  mode %d, result %d\n", path, mode, res);
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    return res;
+    // printf("----  mknod :path %s  mode %d, result %d\n", path, mode, res1);
+
+    return res1;
 }
 
 int c_mkdir(const char *path, mode_t mode)
 {
 
-    int res;
+    int res1, res2;
+    struct storage *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = MKDIR;
     info.int1 = mode;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
 
-    printf("MKDIR Returned :::: %d   path %s mode %d\n", res, path, mode);
-    return res;
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
+
+    // printf("MKDIR Returned :::: %d   path %s mode %d\n", res1, path, mode);
+
+    return res1;
 }
 
 int c_opendir(const char *path, struct fuse_file_info *fi)
 {
     struct opendir_result res;
+    struct storage *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = OPENDIR;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
 
-    recv(sfd, &res, sizeof(struct opendir_result), 0);
+    recv(st->sfd1, &res, sizeof(struct opendir_result), 0);
     fi->fh = (intptr_t)res.res_dir;
     int opendir_res = res.res;
 
-    printf("----  opendir returned : %s res  %d opendirres\n", path, res.res);
+    // printf("----  opendir returned : %s res  %d opendirres\n", path, res.res);
     return res.res;
 }
 
@@ -100,178 +108,198 @@ int c_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
               struct fuse_file_info *fi)
 {
     struct readdir_result res;
+    struct storage *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = READDIR;
     info.sent_dir = (DIR *)(uintptr_t)fi->fh;
-    printf("%s\n\n\n\n", "");
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(struct readdir_result), 0);
+
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res, sizeof(struct readdir_result), 0);
+
     for (char *token = strtok(res.buff, "/"); token != NULL; token = strtok(NULL, "/"))
     {
-        printf("tokeeennn %s\n", token);
         if (filler(buf, token, NULL, 0) != 0)
         {
             printf("----  readdir : %s\n", "ENOMEM");
             return -ENOMEM;
         }
     }
-    printf("READDDIIIRRR %s   res %d\n", res.buff, res.res);
+    // printf("READDDIIIRRR %s   res %d\n", res.buff, res.res);
 
     return res.res;
 }
 
 int c_open(const char *path, struct fuse_file_info *fi)
 {
-    printf("----  open : %s\n", path);
+    // printf("----  open : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
 
-    int res;
+    int res1, res2;
 
     struct client_response info;
-    strcpy(info.string1, path);
+    memcpy(info.string1, path, strlen(path) + 1);
     info.func = OPEN;
     info.int1 = fi->flags;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    printf("\n\n\n\n\n\n\n\n\n open Returned :::: %d\n", res);
+    // printf("\n\n\n\n\n\n\n\n\n open Returned :::: %d\n", res1);
 
-    fi->fh = res;
-    if (res > 0)
-        res = 0;
-    return res;
+    fi->fh = res1;
+    st->res2 = res2;
+    if (res1 > 0)
+        res1 = 0;
+    return res1;
 }
 
 int c_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    printf("----  read : %s\n", path);
+    // printf("----  read : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
 
     struct client_response info;
-    strcpy(info.string1, path);
+    memcpy(info.string1, path, strlen(path) + 1);
     info.func = READ;
     info.int1 = fi->fh;
     info.size = size;
     info.off = offset;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, buf, size, 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, buf, size, 0);
 
     return size;
 }
 
 int c_rename(const char *path, const char *newpath)
 {
-    printf("----  rename : %s\n", path);
+    // printf("----  rename : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
 
-    int res;
+    int res1, res2;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     memcpy(info.string2, newpath, strlen(newpath) + 1);
     info.func = RENAME;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    printf("rename Returned :::: %d\n", res);
-    return res;
+    // printf("rename Returned :::: %d\n", res1);
+    return res1;
 }
 
 int c_unlink(const char *path)
 {
-    printf("\n\n\n\n\n\n\n\n\n----  unlink : %s\n", path);
-    int res;
+    // printf("\n\n\n\n\n\n\n\n\n----  unlink : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
+    int res1, res2;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = UNLINK;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    printf("\n\n\n\n\n\n\n\n\n UNlink Returned :::: %d\n", res);
+    // printf("\n\n\n\n\n\n\n\n\n UNlink Returned :::: %d\n", res1);
 
-    return res;
+    return res1;
 }
 
 int c_rmdir(const char *path)
 {
-    printf("\n\n\n\n\n\n\n\n\n----  rmdir : %s\n", path);
-    int res;
+    // printf("\n\n\n\n\n\n\n\n\n----  rmdir : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
+    int res1, res2;
 
     struct client_response info;
-    strcpy(info.string1, path);
+    memcpy(info.string1, path, strlen(path) + 1);
     info.func = RMDIR;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    printf("\n\n\n\n\n\n\n\n\nrmdir Returned :::: %d\n", res);
+    // printf("\n\n\n\n\n\n\n\n\nrmdir Returned :::: %d\n", res1);
 
-    return res;
+    return res1;
 }
 
 int c_truncate(const char *path, off_t newsize)
 {
-    printf("----  truncate : %s\n", path);
-    int res;
+    // printf("----  truncate : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
+    int res1, res2;
 
     struct client_response info;
-    strcpy(info.string1, path);
+    memcpy(info.string1, path, strlen(path) + 1);
     info.func = TRUNCATE;
     info.size = newsize;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    printf("\n\n\n\n\n\n\n\n\truncate Returned :::: %d\n", res);
-    return res;
+    return res1;
 }
 
 int c_release(const char *path, struct fuse_file_info *fi)
 {
-    printf("----  release : %s\n", path);
-    int res;
+    // printf("----  release : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
+    int res1, res2;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
     info.func = RELEASE;
     info.sent_dir = (DIR *)(uintptr_t)fi->fh;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
 
-    printf("\n\n\n\n\n\n\n\n\n release Returned :::: %d\n", res);
+    info.sent_dir = (DIR *)(uintptr_t)st->res2;
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    return res;
+    return res1;
 }
 
 int c_releasedir(const char *path, struct fuse_file_info *fi)
 {
-    printf("----  releasedir : %s\n", path);
+    // printf("----  releasedir : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
 
-    int res;
+    int res1, res2;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
-    info.func = RELEASE;
+    info.func = RELEASEDIR;
     info.sent_dir = (DIR *)(uintptr_t)fi->fh;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    recv(sfd, &res, sizeof(int), 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
 
-    printf("\n\n\n\n\n\n\n\n\n releasedir Returned :::: %d\n", res);
-
-    return res;
+    return res1;
 }
 
 int c_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    printf("----  write : %s\n", path);
+    // printf("----  write : %s\n", path);
+    struct storage *st = fuse_get_context()->private_data;
 
-    int res;
+    int res1, res2;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -280,14 +308,18 @@ int c_write(const char *path, const char *buf, size_t size, off_t offset, struct
     info.size = size;
     info.off = offset;
 
-    send(sfd, &info, sizeof(struct client_response), 0);
-    send(sfd, buf, size, 0);
+    send(st->sfd1, &info, sizeof(struct client_response), 0);
+    send(st->sfd1, buf, size, 0);
+    recv(st->sfd1, &res1, sizeof(int), 0);
 
-    recv(sfd, &res, sizeof(int), 0);
+    info.sent_dir = (DIR *)(uintptr_t)st->res2;
+    send(st->sfd2, &info, sizeof(struct client_response), 0);
+    send(st->sfd2, buf, size, 0);
+    recv(st->sfd2, &res2, sizeof(int), 0);
 
-    printf("\n releasedir Returned :::: %d\n", res);
+    // printf("\n releasedir Returned :::: %d\n", res1);
 
-    return res;
+    return res1;
 }
 
 struct fuse_operations c_oper = {
@@ -305,29 +337,28 @@ struct fuse_operations c_oper = {
     .readdir = c_readdir,
 };
 
-int client(char *address)
+int client(int *sfd, char *address, int i)
 {
-    char *token;
+    // printf("ADDRESS ::: %s   I :::: %d\n", address, i);
+    char *ip_address = strtok(address, ":");
+    int port = atoi(strtok(NULL, ":"));
+    printf("ADDRESS %s   port %d\n", ip_address, port);
 
     struct sockaddr_in addr;
     int ip;
     char buf[1024];
-    sfd = socket(AF_INET, SOCK_STREAM, 0);
-    inet_pton(AF_INET, "127.0.0.1", &ip);
-
-    token = strtok(NULL, ":"); //PORT
+    *sfd = socket(AF_INET, SOCK_STREAM, 0);
+    inet_pton(AF_INET, ip_address, &ip);
 
     char num[256];
-    int port = 10001;
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = ip;
+    
+    // printf("ADDRESS %s   port %d\n", ip_address, port);
 
-    connect(sfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
-    char *test = "darooo";
-    printf("sfd ::::: %d", sfd);
-    write(sfd, test, 100);
+    connect(*sfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 }
 
 int main(int argc, char *argv[])
@@ -338,13 +369,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    int argv_n = 3;
-    // if (argc == 4)
-    //     argv_n = 3;
-    printf("Fiename :: %s\n", argv[argv_n]);
+    printf("Fiename :: %s\n", argv[3]);
 
     FILE *file;
-    file = fopen(argv[argv_n], "r");
+    file = fopen(argv[3], "r");
     if (file == NULL)
     {
         printf("Invalid config file format\n");
@@ -353,11 +381,32 @@ int main(int argc, char *argv[])
 
     struct config *cfg = malloc(sizeof(struct config));
     parser_parse(file, cfg);
+    parser_print(cfg);
     fclose(file);
 
-    parser_print(cfg);
-    strcpy(argv[argv_n], cfg->storage[0]->mount_point);
-    client(argv[argv_n]);
+    pid_t pid;
 
-    return fuse_main(argc, argv, &c_oper, NULL);
+    int i = 0;
+    printf("%d\n", cfg->storage_size);
+    for (i; i < cfg->storage_size; i++) {
+        pid = fork();
+        if (pid == 0) {
+            printf("i ::: %d\n", i);
+            // printf("%d    %s\n",i, cfg->storage[i]->servers[0]);
+            // printf("%d    %s\n",i, cfg->storage[i]->servers[1]);
+
+            client(&cfg->storage[i]->sfd1, cfg->storage[i]->servers[0], i);
+            client(&cfg->storage[i]->sfd2, cfg->storage[i]->servers[1], i);
+
+            memcpy(argv[3], cfg->storage[i]->mount_point, strlen(cfg->storage[i]->mount_point) + 1);
+            fuse_main(argc, argv, &c_oper, cfg->storage[i]);
+            break;
+        }
+    }
+
+    pid_t pid1;
+    i=0;
+    while((pid1 = wait(&i))>0)
+        1;
+    return 0;
 }

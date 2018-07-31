@@ -113,8 +113,7 @@ void parser_parse(FILE *config_file, struct config *cfg)
     assert(config_file != NULL);
     read_config(config_file, cfg);
     int res = 1;
-    while (res != 0)
-        res = read_storages(config_file, cfg);
+    for(res; res != 0; res = read_storages(config_file, cfg));
 }
 
 void parser_print(struct config *cfg)

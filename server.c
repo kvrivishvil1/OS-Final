@@ -18,7 +18,7 @@
 #define BACKLOG 10
 
 int sfd, cfd;
-char server_path[] = "/home/soso/Desktop/serverdir";
+char server_path[256];
 
 void s_getattr(struct client_response *info)
 {
@@ -50,7 +50,7 @@ void s_mknod(struct client_response *info)
 
     if (res >= 0)
         res = close(res);
-    printf("MKNODDD    path %s  mode %d\n", full_path, info->int1);
+    // printf("MKNODDD    path %s  mode %d\n", full_path, info->int1);
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -63,7 +63,7 @@ int s_mkdir(struct client_response *info)
     memcpy(&full_path[strlen(server_path)], info->string1, strlen(info->string1) + 1);
 
     res = mkdir(full_path, info->int1);
-    printf("MKDIR    path %s  mode %d\n", full_path, info->int1);
+    // printf("MKDIR    path %s  mode %d\n", full_path, info->int1);
     
     if (res < 0)
         res = -errno;
@@ -86,7 +86,7 @@ void s_opendir(struct client_response *info)
     if (res.res_dir == NULL)
         res.res = -errno;
 
-    printf("OPENDIR path %s  result  %d\n", full_path, res.res);
+    // printf("OPENDIR path %s  result  %d\n", full_path, res.res);
 
     send(cfd, &res, sizeof(struct opendir_result), 0);
 }
@@ -104,14 +104,12 @@ void s_readdir(struct client_response *info)
 
     res.buff[0] = '\0';
 
-    printf("%s\n\n\n\n","");
     for (de; de != NULL; de = readdir(info->sent_dir))
     {
-        printf("%s\n", de->d_name);
         strcat(res.buff, de->d_name);
         strcat(res.buff, "/");
     }
-    printf("READDDIIIRRR   %s\n", res.buff);
+    // printf("READDDIIIRRR   %s\n", res.buff);
 
     send(cfd, &res, sizeof(struct readdir_result), 0);
 }
@@ -128,7 +126,7 @@ void s_open(struct client_response *info)
 
     if (res < 0)
         res = -errno;
-    
+    printf("OPENNN %d path :: %s\n", res, full_path);
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -141,6 +139,7 @@ void s_read(struct client_response *info)
     memcpy(&full_path[strlen(server_path)], info->string1, strlen(info->string1) + 1);
 
     pread(info->int1, buf, info->size, info->off);
+    printf("READDD %s\n", "213s");
     send(cfd, buf, info->size, 0);
 }
 
@@ -159,6 +158,7 @@ void s_rename(struct client_response *info)
     res = rename(full_path, new_full_path);
     if (res < 0)
         res = -errno;
+    printf("RENAME %s\n", "213s");
 
     send(cfd, &res, sizeof(int), 0);
 }
@@ -174,7 +174,7 @@ void s_unlink(struct client_response *info)
     res = unlink(full_path);
     if (res < 0)
         res = -errno;
-
+    printf("UNLINK %s\n", "213s");
     int write_res = send(cfd, &res, sizeof(int), 0);
 }
 
@@ -190,6 +190,7 @@ void s_rmdir(struct client_response *info)
     if (res < 0)
         res = -errno;
 
+    printf("RMDIR %s\n", "213s");
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -206,6 +207,7 @@ void s_truncate(struct client_response *info)
     if (res < 0)
         res = -errno;
 
+    printf("TRUNCATE %s\n", "213s");
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -216,6 +218,7 @@ void s_release(struct client_response *info)
     if (res < 0)
         res = -errno;
 
+    printf("RELEASE %s\n", "213s");
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -225,7 +228,8 @@ void s_releasedir(struct client_response *info)
     res = closedir((DIR *)(uintptr_t)info->sent_dir);
     if (res < 0)
         res = -errno;
-
+    printf("RELEASEDIR %s\n", "");
+        
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -244,6 +248,7 @@ void s_write(struct client_response *info)
     if(res < 0)
         res = -errno;
 
+    printf("WRITEEE %s\n", full_path);
     send(cfd, &res, sizeof(int), 0);
 }
 
@@ -251,20 +256,32 @@ int main(int argc, char *argv[])
 {
     char *ip = strtok(argv[1], ":");
     int port = atoi(strtok(NULL, ":"));
-    char *dir = argv[2];
+    memcpy(server_path, argv[2], strlen(argv[2]) + 1);
+    // char *dir = argv[2];
+
+    printf("IPP:::  %s   PORT %d     SERVER_PAATH %s\n", ip, port, server_path);
 
     struct sockaddr_in addr;
     struct sockaddr_in peer_addr;
+    printf("server1 %s\n", "sadas");
     sfd = socket(AF_INET, SOCK_STREAM, 0);
+    printf("server2 %s\n", "sadas");
     int optval = 1;
     setsockopt(sfd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&optval, sizeof(optval));
+    printf("server3 %s\n", "sadas");
     addr.sin_family = AF_INET;
+    printf("server4 %s\n", "sadas");
     addr.sin_port = htons(port);
+    printf("server5 %s\n", "sadas");
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    printf("server6 %s\n", "sadas");
     bind(sfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+    printf("server7 %s\n", "sadas");
     listen(sfd, BACKLOG);
+    printf("server8 %s\n", "sadas");
     int peer_addr_size = sizeof(struct sockaddr_in);
 
+    printf("server9 %s\n", "sadas");
     cfd = accept(sfd, (struct sockaddr *)&peer_addr, &peer_addr_size);
     printf("%s\n", "Connected ---------------------------------   ");
     while (1)

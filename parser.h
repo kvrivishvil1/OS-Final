@@ -10,6 +10,9 @@ struct storage{
     int server_num;
     char ** servers;
     char * hot_swap;
+    int sfd1;
+    int sfd2;
+    int res2;
 };
 
 struct config{
