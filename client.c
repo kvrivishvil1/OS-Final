@@ -28,7 +28,7 @@
 int c_getattr(const char *path, struct stat *statbuf)
 {
     struct getattr_result res;
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -45,7 +45,7 @@ int c_mknod(const char *path, mode_t mode, dev_t dev)
 {
 
     int res1, res2;
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -67,7 +67,7 @@ int c_mkdir(const char *path, mode_t mode)
 {
 
     int res1, res2;
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -88,7 +88,7 @@ int c_mkdir(const char *path, mode_t mode)
 int c_opendir(const char *path, struct fuse_file_info *fi)
 {
     struct opendir_result res;
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -108,7 +108,7 @@ int c_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
               struct fuse_file_info *fi)
 {
     struct readdir_result res;
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -117,7 +117,7 @@ int c_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 
     send(st->sfd1, &info, sizeof(struct client_response), 0);
     recv(st->sfd1, &res, sizeof(struct readdir_result), 0);
-
+    // printf("READDIRRR   %s     \n", res.buff);
     for (char *token = strtok(res.buff, "/"); token != NULL; token = strtok(NULL, "/"))
     {
         if (filler(buf, token, NULL, 0) != 0)
@@ -126,6 +126,7 @@ int c_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
             return -ENOMEM;
         }
     }
+
     // printf("READDDIIIRRR %s   res %d\n", res.buff, res.res);
 
     return res.res;
@@ -134,7 +135,7 @@ int c_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 int c_open(const char *path, struct fuse_file_info *fi)
 {
     // printf("----  open : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     int res1, res2;
 
@@ -145,13 +146,13 @@ int c_open(const char *path, struct fuse_file_info *fi)
 
     send(st->sfd1, &info, sizeof(struct client_response), 0);
     recv(st->sfd1, &res1, sizeof(int), 0);
+
     send(st->sfd2, &info, sizeof(struct client_response), 0);
     recv(st->sfd2, &res2, sizeof(int), 0);
 
-    // printf("\n\n\n\n\n\n\n\n\n open Returned :::: %d\n", res1);
-
     fi->fh = res1;
-    st->res2 = res2;
+    map_put(&st->mp, path, res2);
+
     if (res1 > 0)
         res1 = 0;
     return res1;
@@ -160,7 +161,7 @@ int c_open(const char *path, struct fuse_file_info *fi)
 int c_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     // printf("----  read : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     struct client_response info;
     memcpy(info.string1, path, strlen(path) + 1);
@@ -178,7 +179,7 @@ int c_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_f
 int c_rename(const char *path, const char *newpath)
 {
     // printf("----  rename : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     int res1, res2;
 
@@ -199,7 +200,7 @@ int c_rename(const char *path, const char *newpath)
 int c_unlink(const char *path)
 {
     // printf("\n\n\n\n\n\n\n\n\n----  unlink : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
     int res1, res2;
 
     struct client_response info;
@@ -219,7 +220,7 @@ int c_unlink(const char *path)
 int c_rmdir(const char *path)
 {
     // printf("\n\n\n\n\n\n\n\n\n----  rmdir : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
     int res1, res2;
 
     struct client_response info;
@@ -239,7 +240,7 @@ int c_rmdir(const char *path)
 int c_truncate(const char *path, off_t newsize)
 {
     // printf("----  truncate : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
     int res1, res2;
 
     struct client_response info;
@@ -258,7 +259,7 @@ int c_truncate(const char *path, off_t newsize)
 int c_release(const char *path, struct fuse_file_info *fi)
 {
     // printf("----  release : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
     int res1, res2;
 
     struct client_response info;
@@ -269,7 +270,7 @@ int c_release(const char *path, struct fuse_file_info *fi)
     send(st->sfd1, &info, sizeof(struct client_response), 0);
     recv(st->sfd1, &res1, sizeof(int), 0);
 
-    info.sent_dir = (DIR *)(uintptr_t)st->res2;
+    info.sent_dir = (DIR *)(uintptr_t)map_get(&st->mp, path);
     send(st->sfd2, &info, sizeof(struct client_response), 0);
     recv(st->sfd2, &res2, sizeof(int), 0);
 
@@ -279,7 +280,7 @@ int c_release(const char *path, struct fuse_file_info *fi)
 int c_releasedir(const char *path, struct fuse_file_info *fi)
 {
     // printf("----  releasedir : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     int res1, res2;
 
@@ -297,7 +298,7 @@ int c_releasedir(const char *path, struct fuse_file_info *fi)
 int c_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     // printf("----  write : %s\n", path);
-    struct storage *st = fuse_get_context()->private_data;
+    struct mutual_server *st = fuse_get_context()->private_data;
 
     int res1, res2;
 
@@ -312,7 +313,7 @@ int c_write(const char *path, const char *buf, size_t size, off_t offset, struct
     send(st->sfd1, buf, size, 0);
     recv(st->sfd1, &res1, sizeof(int), 0);
 
-    info.sent_dir = (DIR *)(uintptr_t)st->res2;
+    info.sent_dir = (DIR *)(uintptr_t)map_get(&st->mp, path);
     send(st->sfd2, &info, sizeof(struct client_response), 0);
     send(st->sfd2, buf, size, 0);
     recv(st->sfd2, &res2, sizeof(int), 0);
@@ -355,24 +356,29 @@ int client(int *sfd, char *address, int i)
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = ip;
-    
-    // printf("ADDRESS %s   port %d\n", ip_address, port);
 
     connect(*sfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 }
 
+void logServerConnection(char *serveName, FILE *f)
+{
+    fwrite(serveName, 1, strlen(serveName), f);
+    fwrite(" ", 1, 1, f);
+    fwrite("Connected\n", 1, 10, f);
+}
+
 int main(int argc, char *argv[])
 {
-    if (argc != 4)
+    if (argc != 3 && argc != 4)
     {
         printf("Invalid command format\n");
         return -1;
     }
-
-    printf("Fiename :: %s\n", argv[3]);
-
+    int idx = 3;
+    if (argc == 3)
+        idx = 2;
     FILE *file;
-    file = fopen(argv[3], "r");
+    file = fopen(argv[idx], "r");
     if (file == NULL)
     {
         printf("Invalid config file format\n");
@@ -381,32 +387,50 @@ int main(int argc, char *argv[])
 
     struct config *cfg = malloc(sizeof(struct config));
     parser_parse(file, cfg);
-    parser_print(cfg);
     fclose(file);
 
+    printf("strgsize %d\n", cfg->storage_size);
+
     pid_t pid;
-
+    struct mutual_server sts[cfg->storage_size];
     int i = 0;
-    printf("%d\n", cfg->storage_size);
-    for (i; i < cfg->storage_size; i++) {
+    for (i; i < cfg->storage_size; i++)
+    {
         pid = fork();
-        if (pid == 0) {
+        if (pid == 0)
+        {
             printf("i ::: %d\n", i);
-            // printf("%d    %s\n",i, cfg->storage[i]->servers[0]);
-            // printf("%d    %s\n",i, cfg->storage[i]->servers[1]);
+            map_init(&sts[i].mp);
+            memcpy(sts[i].server1, cfg->storage[i]->servers[0], strlen(cfg->storage[i]->servers[0]) + 1);
+            memcpy(sts[i].server2, cfg->storage[i]->servers[1], strlen(cfg->storage[i]->servers[1]) + 1);
 
-            client(&cfg->storage[i]->sfd1, cfg->storage[i]->servers[0], i);
-            client(&cfg->storage[i]->sfd2, cfg->storage[i]->servers[1], i);
+            FILE *f = fopen(cfg->storage[i]->disk_name, "w");
 
-            memcpy(argv[3], cfg->storage[i]->mount_point, strlen(cfg->storage[i]->mount_point) + 1);
-            fuse_main(argc, argv, &c_oper, cfg->storage[i]);
+            client(&sts[i].sfd1, cfg->storage[i]->servers[0], i);
+            logServerConnection(sts[i].server1, f);
+
+            client(&sts[i].sfd2, cfg->storage[i]->servers[1], i);
+            logServerConnection(sts[i].server2, f);
+
+            memcpy(argv[idx], cfg->storage[i]->mount_point, strlen(cfg->storage[i]->mount_point) + 1);
+            fuse_main(argc, argv, &c_oper, &sts[i]);
             break;
         }
     }
 
     pid_t pid1;
-    i=0;
-    while((pid1 = wait(&i))>0)
-        1;
+    i = 0;
+    while ((pid1 = wait(&i)) > 0)
+    {
+    }
+    i = 0;
+    for (i; i < cfg->storage_size; i++)
+    {
+        fclose(sts[i].fd);
+    }
+    // for(i=0; i<cfg->storage_size; i++) {
+    //     map_dispose(&sts[i].mp);
+    // }
+    // parser_destroy(cfg);
     return 0;
 }

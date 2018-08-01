@@ -3,6 +3,7 @@
 
 #include <sys/stat.h>
 #include <dirent.h>
+#include "map.h"
 
 #define GETATTR 1
 #define MKNOD 2
@@ -29,7 +30,7 @@ struct client_response
 	size_t size;
 	off_t off;
 
-	DIR *sent_dir;
+	DIR * sent_dir;
 };
 
 struct getattr_result
@@ -48,6 +49,17 @@ struct readdir_result
 {
 	int res;
 	char buff[8192];
+};
+
+struct mutual_server {
+	int sfd1;
+	int sfd2;
+
+	struct map mp;
+	FILE * fd;
+	
+	char server1 [64];
+	char server2 [64];
 };
 
 #endif

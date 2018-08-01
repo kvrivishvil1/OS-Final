@@ -1,5 +1,5 @@
 COMPILER = gcc -g
-FILESYSTEM_FILES_CLIENT = client.c parser.c
+FILESYSTEM_FILES_CLIENT = client.c parser.c map.c
 FILESYSTEM_FILES_SERVER = server.c
 
 build: 

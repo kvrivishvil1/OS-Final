@@ -9,8 +9,8 @@ raid = 1
 servers = 127.0.0.1:10001, 127.0.0.1:10002
 hotswap = 127.0.0.1:11111 
 
-sdiskname = STORAGE2
-smountpoint = /home/soso/Desktop/OS/mountpoint1
-sraid = 1
-sservers = 127.0.0.1:10011, 127.0.0.1:10022
-shotswap = 127.0.0.1:22222
+!diskname = STORAGE2
+!mountpoint = /home/soso/Desktop/OS/mountpoint1
+!raid = 1
+!servers = 127.0.0.1:10011, 127.0.0.1:10022
+!hotswap = 127.0.0.1:22222
